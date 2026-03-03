@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+.env
+.env.local
+vercel.json
+.vercelignore
+README_DEPLOYMENT.md

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: roar-item-generator
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: MODEL_PATH
+        value: /opt/render/project/src/models
+      - key: PYTHON_VERSION
+        value: 3.13.0
