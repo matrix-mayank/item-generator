@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ROAR Item Generator</title>
+    <title>Reading Comprehension Item Generator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -24,19 +24,16 @@
         .navbar {
             background: white;
             border-bottom: 1px solid #e8e5e0;
-            padding: 20px 0;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            padding: 12px 0;
         }
 
         .navbar-content {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
             padding: 0 40px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
         }
 
         .logo {
@@ -46,11 +43,48 @@
             font-size: 18px;
             font-weight: 600;
             color: #2c2c2c;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .navbar-actions .btn-header {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: none;
+        }
+
+        .navbar-actions .btn-header.btn-collection {
+            background: #2c2c2c;
+            color: white;
+        }
+
+        .navbar-actions .btn-header.btn-collection:hover {
+            background: #1a1a1a;
+        }
+
+        .navbar-actions .btn-header.btn-clear {
+            background: white;
+            color: #2c2c2c;
+            border: 1.5px solid #2c2c2c;
+        }
+
+        .navbar-actions .btn-header.btn-clear:hover {
+            background: #f8f6f3;
         }
 
         .logo-icon {
-            width: 36px;
-            height: 36px;
+            width: 28px;
+            height: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -60,11 +94,6 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-        }
-
-        .nav-buttons {
-            display: flex;
-            gap: 12px;
         }
 
         .btn {
@@ -100,45 +129,200 @@
         }
 
         .container {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
-            padding: 32px 40px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 53px);
+        }
+
+        .settings-container {
             display: grid;
-            grid-template-columns: 1fr 400px;
-            gap: 32px;
-            min-height: calc(100vh - 90px);
+            grid-template-columns: 1fr 450px;
+            gap: 0;
+            align-items: stretch;
+        }
+
+        .settings-bar {
+            background: #f8f6f3;
+            border-bottom: 1px solid #e8e5e0;
+            border-right: 1px solid #e8e5e0;
+            padding: 12px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: nowrap;
+            transition: all 0.3s ease;
+            overflow-x: auto;
+        }
+
+        .settings-spacer {
+            background: white;
+            border-bottom: 1px solid #e8e5e0;
+        }
+
+        .settings-bar.collapsed {
+            padding: 8px 40px;
+            max-height: 50px;
+        }
+
+        .settings-bar.collapsed ~ .settings-spacer {
+            display: none;
+        }
+
+        .settings-bar.collapsed .setting-group,
+        .settings-bar.collapsed .btn-apply-settings {
+            display: none;
+        }
+
+        .settings-bar.collapsed h2 {
+            margin: 0;
+        }
+
+        .btn-toggle-settings {
+            padding: 6px 16px;
+            background: white;
+            border: 1.5px solid #d8d4cf;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            color: #6c6c6c;
+            margin-left: auto;
+        }
+
+        .btn-toggle-settings:hover {
+            border-color: #2c2c2c;
+            color: #2c2c2c;
+        }
+
+        .settings-bar:not(.collapsed) .btn-toggle-settings {
+            display: none;
+        }
+
+        .settings-bar h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6c6c6c;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6c6c6c;
+            white-space: nowrap;
+        }
+
+        .setting-input, .setting-select {
+            padding: 4px 6px;
+            border: 1.5px solid #d8d4cf;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+            color: #2c2c2c;
+            transition: border-color 0.2s ease;
+            min-width: 50px;
+        }
+
+        .setting-input:focus, .setting-select:focus {
+            outline: none;
+            border-color: #2c2c2c;
+            box-shadow: 0 0 0 2px rgba(44, 44, 44, 0.05);
+        }
+
+        .setting-select {
+            cursor: pointer;
+        }
+
+        .btn-apply-settings {
+            padding: 4px 12px;
+            background: #6b6660;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            position: relative;
+            min-width: 36px;
+        }
+
+        .btn-apply-settings:hover {
+            background: #5a5650;
+        }
+
+        .btn-apply-settings.success {
+            background: #5a9d5a;
+        }
+
+        .btn-apply-settings.success::after {
+            content: "";
+        }
+
+        .file-upload-btn {
+            padding: 4px 10px;
+            background: white;
+            border: 1.5px solid #d8d4cf;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            color: #6c6c6c;
+            white-space: nowrap;
+        }
+
+        .file-upload-btn:hover {
+            border-color: #2c2c2c;
+            color: #2c2c2c;
+        }
+
+        .file-upload-btn.has-file {
+            background: #e8f5e9;
+            border-color: #5a9d5a;
+            color: #2e7d32;
+        }
+
+        .file-upload-input {
+            display: none;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 450px;
+            gap: 0;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
 
         .main-section {
             background: white;
-            border-radius: 8px;
-            border: 1px solid #e8e5e0;
+            border-right: 1px solid #e8e5e0;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 150px);
-        }
-
-        .section-header {
-            padding: 32px 32px 24px;
-            border-bottom: 1px solid #f0ede8;
-        }
-
-        .section-header h1 {
-            font-size: 28px;
-            font-weight: 600;
-            color: #2c2c2c;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-        }
-
-        .section-header p {
-            font-size: 15px;
-            color: #6c6c6c;
-            line-height: 1.5;
+            height: 100%;
+            min-height: 0;
         }
 
         .messages {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 24px 32px;
             background: #f8f6f3;
@@ -190,10 +374,18 @@
             background: #f0ede8;
             color: #6c6c6c;
             border: 1px solid #e8e5e0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .message.assistant .message-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .message-content {
-            max-width: 75%;
+            max-width: 90%;
             padding: 16px 18px;
             border-radius: 8px;
             line-height: 1.7;
@@ -278,25 +470,25 @@
 
         .sidebar {
             background: white;
-            border-radius: 8px;
-            border: 1px solid #e8e5e0;
-            padding: 24px;
-            height: calc(100vh - 150px);
+            padding: 16px 20px;
+            height: 100%;
+            min-height: 0;
             overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .sidebar h2 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: #2c2c2c;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
             border-bottom: 1px solid #f0ede8;
             letter-spacing: -0.3px;
         }
 
         .item-field {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .item-field-label {
@@ -310,7 +502,7 @@
 
         .item-field-content {
             background: #f8f6f3;
-            padding: 14px;
+            padding: 12px;
             border-radius: 6px;
             color: #2c2c2c;
             line-height: 1.6;
@@ -361,9 +553,10 @@
 
         .item-actions {
             display: flex;
-            gap: 10px;
-            margin-top: 24px;
-            padding-top: 20px;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
             border-top: 1px solid #f0ede8;
         }
 
@@ -374,7 +567,8 @@
             font-weight: 500;
             cursor: pointer;
             transition: all 0.15s ease;
-            flex: 1;
+            width: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         .btn-save {
@@ -745,6 +939,28 @@
             font-weight: 600;
         }
 
+        .welcome-message {
+            background: white;
+            border: 1px solid #e8e5e0;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 20px;
+            text-align: center;
+        }
+
+        .welcome-message h3 {
+            font-size: 18px;
+            color: #2c2c2c;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .welcome-message p {
+            color: #6c6c6c;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
         .loader {
             display: inline-block;
             width: 16px;
@@ -816,31 +1032,92 @@
 <body>
     <nav class="navbar">
         <div class="navbar-content">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <img src="/static/lion-logo.png" alt="ROAR Logo">
-                    </div>
-                    <span>ROAR Item Generator</span>
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src="/static/assistant-avatar.png" alt="App Icon">
                 </div>
-                <div class="nav-buttons">
-                    <button class="btn btn-secondary" onclick="openCollectionModal()">
-                        View Collection (<span id="navCollectionCount">0</span>)
-                    </button>
-                    <button class="btn btn-secondary" onclick="clearSession()">Clear Session</button>
-                    <button class="btn btn-primary" onclick="exportItem()">Export Current</button>
-                </div>
+                <span>Reading Comprehension Item Generator</span>
+            </div>
+            <div class="navbar-actions">
+                <button type="button" class="btn-header btn-collection" onclick="openCollectionModal()">
+                    View Collection (<span id="collectionCount">0</span>)
+                </button>
+                <button type="button" class="btn-header btn-clear" onclick="clearSession()">Clear Session</button>
+            </div>
         </div>
     </nav>
 
     <div class="container">
-        <div class="main-section">
-            <div class="section-header">
-                <h1>Create ROAR Assessment Items</h1>
-                <p>Generate reading comprehension items with AI guidance and difficulty estimation</p>
-                <p style="font-size: 14px; color: #8c8c8c; margin-top: 8px;">Try: "Generate a reading comprehension item about ocean animals"</p>
+        <!-- Settings Bar (Only over chat area) -->
+        <div class="settings-container">
+            <div class="settings-bar" id="settingsBar">
+                <h2>⚙️ Settings:</h2>
+                
+                <button class="btn-toggle-settings" onclick="toggleSettings()">⚙️ Settings</button>
+            
+            <div class="setting-group">
+                <label class="setting-label">Passage Length (words):</label>
+                <input type="number" class="setting-input" id="passageWordCount" min="10" max="1000" value="20" style="width: 70px;">
             </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Distractors:</label>
+                <select class="setting-select" id="distractorsPerQuestion">
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Grade Level:</label>
+                <select class="setting-select" id="gradeLevel">
+                    <option value="3">Grade 3</option>
+                    <option value="4" selected>Grade 4</option>
+                    <option value="5">Grade 5</option>
+                    <option value="6">Grade 6</option>
+                    <option value="7">Grade 7</option>
+                    <option value="8">Grade 8</option>
+                    <option value="9">Grade 9</option>
+                    <option value="10">Grade 10</option>
+                    <option value="11">Grade 11</option>
+                    <option value="12">Grade 12</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Inference Type:</label>
+                <select class="setting-select" id="inferenceType" style="min-width: 110px;">
+                    <option value="all" selected>All Types</option>
+                    <option value="text-explicit">Text-Explicit</option>
+                    <option value="text-implicit">Text-Implicit</option>
+                    <option value="script-implicit">Script-Implicit</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <input type="file" id="manualUpload" class="file-upload-input" accept=".txt,.pdf,.doc,.docx" onchange="handleFileUpload(event)">
+                <button class="file-upload-btn" id="uploadBtn" onclick="document.getElementById('manualUpload').click()">
+                    📄 Upload Manual
+                </button>
+            </div>
+
+            <div class="setting-group">
+                <button class="btn-apply-settings" onclick="applySettings()">✓</button>
+            </div>
+        </div>
+        <div class="settings-spacer" id="settingsSpacer"></div>
+        </div>
+
+        <div class="main-content">
+            <!-- Main Chat Section (Left) -->
+            <div class="main-section">
             
             <div class="messages" id="messages">
+                <div class="message assistant">
+                    <div class="message-avatar"><img src="/static/assistant-avatar.png" alt="AI"></div>
+                    <div class="message-content">Hey there! 👋 I create reading comprehension items based on NY/Texas standardized test formats. You can override my default style by uploading a manual or guidelines above - the rules in your guide will be followed, but the configured settings (passage length, grade level, number of distractors, inference type) will be applied on top. To get started, configure your settings at the top and click Apply. Then just tell me what you'd like: for example, "Generate a passage about space exploration" or "Create a passage about climate change."</div>
+                </div>
             </div>
             
             <div class="input-area">
@@ -857,11 +1134,13 @@
             </div>
         </div>
         
+        <!-- Item Preview Sidebar (Right) -->
         <div class="sidebar" id="itemPreview">
             <div class="empty-state">
                 <p><strong>No item yet</strong></p>
                 <p style="margin-top: 8px;">Generated items will appear here</p>
             </div>
+        </div>
         </div>
     </div>
 
@@ -894,6 +1173,8 @@
         const itemPreview = document.getElementById('itemPreview');
 
         let currentItem = null;
+        /** Config last applied via Apply button; sent with each chat so generation uses it even if session is lost */
+        let lastAppliedConfig = null;
 
         messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -906,6 +1187,24 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 150) + 'px';
         });
+
+        /** Build config from current form values so changing settings applies to the next generation without clicking Apply. */
+        function getConfigForRequest() {
+            const rawWords = document.getElementById('passageWordCount').value;
+            let passageWordCount = rawWords === '' || isNaN(parseInt(rawWords, 10)) ? 20 : parseInt(rawWords, 10);
+            passageWordCount = Math.max(10, Math.min(1000, passageWordCount));
+            const distractorEl = document.getElementById('distractorsPerQuestion');
+            const numDistractors = distractorEl ? (parseInt(distractorEl.value, 10) || 2) : 2;
+            const config = {
+                passage_word_count: passageWordCount,
+                distractors_per_question: Math.max(2, Math.min(4, numDistractors)),
+                grade_level: parseInt(document.getElementById('gradeLevel').value, 10) || 4,
+                inference_type: document.getElementById('inferenceType').value || 'all'
+            };
+            if (lastAppliedConfig && lastAppliedConfig.custom_manual)
+                config.custom_manual = lastAppliedConfig.custom_manual;
+            return config;
+        }
 
         async function sendMessage() {
             const message = messageInput.value.trim();
@@ -927,7 +1226,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ message, config: getConfigForRequest() })
                 });
 
                 const data = await response.json();
@@ -944,6 +1243,14 @@
                         console.log('Received item:', data.item);
                         currentItem = data.item;
                         updateItemPreview(data.item, data.difficulty);
+                        // Scroll both chat and preview panel to bottom
+                        setTimeout(() => {
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            const sidebar = document.getElementById('itemPreview');
+                            if (sidebar) {
+                                sidebar.scrollTop = 0; // Scroll to top of preview panel to see difficulty
+                            }
+                        }, 100);
                     } else {
                         console.log('No item in response');
                     }
@@ -961,7 +1268,7 @@
             const indicator = document.createElement('div');
             indicator.className = 'message assistant';
             indicator.innerHTML = `
-                <div class="message-avatar">AI</div>
+                <div class="message-avatar"><img src="/static/assistant-avatar.png" alt="AI"></div>
                 <div class="typing-indicator">
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
@@ -979,7 +1286,15 @@
             
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
-            avatar.textContent = sender === 'user' ? 'You' : 'AI';
+            
+            if (sender === 'assistant') {
+                const img = document.createElement('img');
+                img.src = '/static/assistant-avatar.png';
+                img.alt = 'AI';
+                avatar.appendChild(img);
+            } else {
+                avatar.textContent = 'You';
+            }
             
             const content = document.createElement('div');
             content.className = 'message-content';
@@ -1011,7 +1326,7 @@
             }
             
             currentItem = item;
-            currentDifficulty = difficulty; // Store difficulty
+            currentDifficulty = difficulty;
             console.log('currentItem is now:', currentItem);
             console.log('currentDifficulty is now:', currentDifficulty);
             
@@ -1032,21 +1347,64 @@
                 
                 difficultyHTML = `
                     <div class="item-field">
-                        <div class="item-field-label">Estimated Difficulty</div>
+                        <div class="item-field-label">Difficulty</div>
                         <div class="item-field-content">
                             <span class="difficulty-badge ${difficultyClass}">
                                 ${difficultyLabel}
                             </span>
-                            <div style="margin-top: 8px; font-size: 13px; color: #6c6c6c;">
-                                <div>Normalized: ${(score * 100).toFixed(1)}%</div>
-                                <div>IRT Score: ${typeof irtScore === 'number' ? irtScore.toFixed(3) : irtScore}</div>
+                            <div style="margin-top: 8px; font-size: 12px; color: #6c6c6c;">
+                                <div>Score: ${(score * 100).toFixed(1)}%</div>
+                                <div>IRT: ${typeof irtScore === 'number' ? irtScore.toFixed(3) : irtScore}</div>
                             </div>
                         </div>
                     </div>
                 `;
             }
 
-            // Create the HTML without onclick handlers
+            // Build distractors HTML
+            let distractorsHTML = '';
+            if (item.distractor_1) {
+                distractorsHTML += `
+                    <div class="item-field">
+                        <div class="item-field-label">Distractor 1</div>
+                        <div class="item-field-content editable" data-field="distractor_1">
+                            ${escapeHtml(item.distractor_1) || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }
+            if (item.distractor_2) {
+                distractorsHTML += `
+                    <div class="item-field">
+                        <div class="item-field-label">Distractor 2</div>
+                        <div class="item-field-content editable" data-field="distractor_2">
+                            ${escapeHtml(item.distractor_2) || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }
+            if (item.distractor_3) {
+                distractorsHTML += `
+                    <div class="item-field">
+                        <div class="item-field-label">Distractor 3</div>
+                        <div class="item-field-content editable" data-field="distractor_3">
+                            ${escapeHtml(item.distractor_3) || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }
+            if (item.distractor_4) {
+                distractorsHTML += `
+                    <div class="item-field">
+                        <div class="item-field-label">Distractor 4</div>
+                        <div class="item-field-content editable" data-field="distractor_4">
+                            ${escapeHtml(item.distractor_4) || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Create simplified HTML
             itemPreview.innerHTML = `
                 <h2>Current Item</h2>
                 
@@ -1073,65 +1431,7 @@
                     </div>
                 </div>
                 
-                <div class="item-field">
-                    <div class="item-field-label">Distractor 1 (Partial)</div>
-                    <div class="item-field-content editable" data-field="distractor_1">
-                        ${escapeHtml(item.distractor_1) || 'N/A'}
-                    </div>
-                </div>
-                
-                <div class="item-field">
-                    <div class="item-field-label">Distractor 2 (Minimal)</div>
-                    <div class="item-field-content editable" data-field="distractor_2">
-                        ${escapeHtml(item.distractor_2) || 'N/A'}
-                    </div>
-                </div>
-                
-                <div class="item-field">
-                    <div class="item-field-label">Metadata</div>
-                    <div class="metadata-grid">
-                        <div class="metadata-item">
-                            <div class="metadata-label">Event-Chain</div>
-                            <select class="metadata-select" data-field="event_chain_relation">
-                                <option value="Informational" ${item.event_chain_relation == 'Informational' ? 'selected' : ''}>Informational</option>
-                                <option value="Causal" ${item.event_chain_relation == 'Causal' ? 'selected' : ''}>Causal</option>
-                                <option value="Motivational" ${item.event_chain_relation == 'Motivational' ? 'selected' : ''}>Motivational</option>
-                                <option value="Intentional" ${item.event_chain_relation == 'Intentional' ? 'selected' : ''}>Intentional</option>
-                            </select>
-                        </div>
-                        <div class="metadata-item">
-                            <div class="metadata-label">Knowledge-Base</div>
-                            <select class="metadata-select" data-field="knowledge_base_inference">
-                                <option value="Referential" ${item.knowledge_base_inference == 'Referential' ? 'selected' : ''}>Referential</option>
-                                <option value="Elaborative" ${item.knowledge_base_inference == 'Elaborative' ? 'selected' : ''}>Elaborative</option>
-                            </select>
-                        </div>
-                        <div class="metadata-item">
-                            <div class="metadata-label">QAR Level</div>
-                            <select class="metadata-select" data-field="qar_level">
-                                <option value="Text-Explicit" ${item.qar_level == 'Text-Explicit' ? 'selected' : ''}>Text-Explicit</option>
-                                <option value="Text-Implicit" ${item.qar_level == 'Text-Implicit' ? 'selected' : ''}>Text-Implicit</option>
-                                <option value="Script-Implicit" ${item.qar_level == 'Script-Implicit' ? 'selected' : ''}>Script-Implicit</option>
-                            </select>
-                        </div>
-                        <div class="metadata-item">
-                            <div class="metadata-label">Coherence</div>
-                            <select class="metadata-select" data-field="coherence_level">
-                                <option value="Local" ${item.coherence_level == 'Local' ? 'selected' : ''}>Local</option>
-                                <option value="Global" ${item.coherence_level == 'Global' ? 'selected' : ''}>Global</option>
-                            </select>
-                        </div>
-                        <div class="metadata-item">
-                            <div class="metadata-label">Stance</div>
-                            <select class="metadata-select" data-field="explanatory_stance">
-                                <option value="N/A" ${!item.explanatory_stance || item.explanatory_stance == 'N/A' ? 'selected' : ''}>N/A</option>
-                                <option value="Physical" ${item.explanatory_stance == 'Physical' ? 'selected' : ''}>Physical</option>
-                                <option value="Psychological" ${item.explanatory_stance == 'Psychological' ? 'selected' : ''}>Psychological</option>
-                                <option value="Social" ${item.explanatory_stance == 'Social' ? 'selected' : ''}>Social</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+                ${distractorsHTML}
                 
                 <div class="item-actions">
                     <button class="btn-small btn-add" id="saveToCollectionBtn">Save to Collection</button>
@@ -1145,15 +1445,6 @@
                 el.addEventListener('click', function() {
                     console.log('Editable element clicked:', this.dataset.field);
                     makeEditable(this, this.dataset.field);
-                });
-            });
-            
-            // Add metadata dropdown listeners
-            const metadataSelects = itemPreview.querySelectorAll('.metadata-select');
-            console.log('Found metadata selects:', metadataSelects.length);
-            metadataSelects.forEach(select => {
-                select.addEventListener('change', function() {
-                    updateMetadata(this.dataset.field, this.value);
                 });
             });
             
@@ -1177,13 +1468,19 @@
 
             try {
                 await fetch('/clear', { method: 'POST' });
-                messagesContainer.innerHTML = '';
+                messagesContainer.innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-avatar"><img src="/static/assistant-avatar.png" alt="AI"></div>
+                        <div class="message-content">Hey there! 👋 I create reading comprehension items based on NY/Texas standardized test formats. You can override my default style by uploading a manual or guidelines above - the rules in your guide will be followed, but the configured settings (passage length, grade level, number of distractors, inference type) will be applied on top. To get started, configure your settings at the top and click Apply. Then just tell me what you'd like: for example, "Generate a passage about space exploration" or "Create a passage about climate change."</div>
+                    </div>
+                `;
                 itemPreview.innerHTML = `
                     <div class="empty-state">
                         <p><strong>No item yet</strong></p>
                         <p style="margin-top: 8px;">Generated items will appear here</p>
                     </div>
                 `;
+                location.reload(); // Reload to reset the view collection button
             } catch (error) {
                 alert('Error clearing session: ' + error.message);
             }
@@ -1459,7 +1756,6 @@
                 if (data.error) {
                     alert('Error: ' + data.error);
                 } else {
-                    alert(`Added to collection! (${data.collection_size} items total)`);
                     loadCollection();
                 }
             } catch (error) {
@@ -1479,10 +1775,14 @@
                 console.log('Items:', data.items);
                 
                 const collectionItems = document.getElementById('collectionItems');
-                const navCollectionCount = document.getElementById('navCollectionCount');
+                const collectionCount = document.getElementById('collectionCount');
                 const exportAllBtn = document.getElementById('exportAllBtn');
                 
-                navCollectionCount.textContent = data.count;
+                // Update collection count in right panel if element exists
+                if (collectionCount) {
+                    collectionCount.textContent = data.count;
+                }
+                
                 exportAllBtn.disabled = data.count === 0;
                 
                 if (data.items.length === 0) {
@@ -1589,7 +1889,7 @@
                     
                     // Extract filename from Content-Disposition header
                     const disposition = response.headers.get('Content-Disposition');
-                    let filename = 'roar_items_collection.csv';
+                    let filename = 'items.csv';
                     if (disposition && disposition.includes('filename=')) {
                         filename = disposition.split('filename=')[1].trim();
                     }
@@ -1599,8 +1899,6 @@
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    
-                    alert('Collection exported successfully!');
                 }
             } catch (error) {
                 console.error('Export error:', error);
@@ -1610,8 +1908,163 @@
 
         // Load collection on page load
         window.addEventListener('DOMContentLoaded', () => {
+            // Force set default values
+            document.getElementById('passageWordCount').value = 20;
+            document.getElementById('distractorsPerQuestion').value = 2;
+            document.getElementById('gradeLevel').value = 4;
+            document.getElementById('inferenceType').value = 'all';
+            
             loadCollection();
+            loadConfig();
         });
+
+        // Configuration management
+        async function loadConfig() {
+            try {
+                const response = await fetch('/get_config');
+                const config = await response.json();
+                lastAppliedConfig = config;
+                
+                // Update form fields
+                document.getElementById('passageWordCount').value = config.passage_word_count || 20;
+                document.getElementById('distractorsPerQuestion').value = config.distractors_per_question || 2;
+                document.getElementById('gradeLevel').value = config.grade_level || 4;
+                document.getElementById('inferenceType').value = config.inference_type || 'all';
+                
+                // Update file upload status
+                if (config.custom_manual) {
+                    const btn = document.getElementById('uploadBtn');
+                    btn.textContent = '✅ Manual Loaded';
+                    btn.classList.add('has-file');
+                    btn.onclick = function(e) {
+                        e.stopPropagation();
+                        clearFile();
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        async function applySettings() {
+            try {
+                const rawWords = document.getElementById('passageWordCount').value;
+                const passageWordCount = rawWords === '' || isNaN(parseInt(rawWords)) ? 20 : parseInt(rawWords);
+                
+                const config = {
+                    passage_word_count: passageWordCount,
+                    distractors_per_question: parseInt(document.getElementById('distractorsPerQuestion').value) || 2,
+                    grade_level: parseInt(document.getElementById('gradeLevel').value) || 4,
+                    inference_type: document.getElementById('inferenceType').value || 'all'
+                };
+
+                const response = await fetch('/update_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ config })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    lastAppliedConfig = data.config || config;
+                    // Show success state on button
+                    const applyBtn = document.querySelector('.btn-apply-settings');
+                    applyBtn.classList.add('success');
+                    
+                    // Collapse settings panel after applying
+                    setTimeout(() => {
+                        const settingsBar = document.getElementById('settingsBar');
+                        const toggleBtn = document.querySelector('.btn-toggle-settings');
+                        settingsBar.classList.add('collapsed');
+                        applyBtn.classList.remove('success');
+                        
+                        // Update toggle button to show chevron
+                        toggleBtn.textContent = '∨ Settings';
+                    }, 1000);
+                }
+            } catch (error) {
+                alert('Error applying settings: ' + error.message);
+            }
+        }
+
+        function toggleSettings() {
+            const settingsBar = document.getElementById('settingsBar');
+            const toggleBtn = document.querySelector('.btn-toggle-settings');
+            
+            settingsBar.classList.toggle('collapsed');
+            
+            // Update button text based on state
+            if (settingsBar.classList.contains('collapsed')) {
+                toggleBtn.textContent = '∨ Settings';
+            } else {
+                toggleBtn.textContent = '⚙️ Settings';
+            }
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload_manual', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    event.target.value = '';
+                } else {
+                    const btn = document.getElementById('uploadBtn');
+                    btn.textContent = '✅ Manual Loaded';
+                    btn.classList.add('has-file');
+                    btn.onclick = function(e) {
+                        e.stopPropagation();
+                        clearFile();
+                    };
+                }
+            } catch (error) {
+                alert('Error uploading file: ' + error.message);
+                event.target.value = '';
+            }
+        }
+
+        async function clearFile() {
+            if (!confirm('Remove the uploaded manual?')) return;
+
+            try {
+                const response = await fetch('/clear_manual', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    const btn = document.getElementById('uploadBtn');
+                    btn.textContent = '📄 Upload Manual';
+                    btn.classList.remove('has-file');
+                    btn.onclick = function() {
+                        document.getElementById('manualUpload').click();
+                    };
+                    document.getElementById('manualUpload').value = '';
+                    alert('Manual removed successfully!');
+                }
+            } catch (error) {
+                alert('Error clearing file: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>

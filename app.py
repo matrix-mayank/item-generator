@@ -1,179 +1,77 @@
 import os
+import re
 import json
+import uuid
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import pandas as pd
 from difficulty_estimator import DifficultyEstimator
+from config import DEFAULT_CONFIG, validate_config, merge_config
+from prompt_builder import build_system_prompt, build_chat_system_message
+from file_handler import process_manual_upload, allowed_file
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
+app.config['MANUALS_DIR'] = os.path.join(app.config['UPLOAD_FOLDER'], 'manuals')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max file size
+
+
+def get_manual_text(config):
+    """Return full manual text. Manuals are stored in a file to avoid session cookie truncation (~4KB limit)."""
+    manual_id = config.get('custom_manual_id')
+    if manual_id:
+        path = os.path.join(app.config['MANUALS_DIR'], manual_id + '.txt')
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                    return f.read()
+            except Exception:
+                pass
+    return config.get('custom_manual')  # fallback: inline (may be truncated if large)
 
 client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
-difficulty_estimator = DifficultyEstimator(os.getenv('MODEL_PATH'))
+_model_dir = os.getenv('MODEL_PATH') or os.path.join(os.path.dirname(__file__), 'models')
+difficulty_estimator = DifficultyEstimator(_model_dir)
 
-ROAR_PROMPT = """You are an expert educational content designer creating reading comprehension items for the ROAR-Inference assessment. Generate ONE complete item per request following all rules below.
+# Configuration will be stored in session
+# Prompts will be dynamically generated using prompt_builder.py
 
----
 
-## ITEM STRUCTURE
+def message_for_display(raw_message):
+    """Strip metadata, design notes, and any content after the item so chat shows only the item."""
+    if not raw_message or not raw_message.strip():
+        return raw_message
+    text = raw_message.strip()
+    # Remove everything from --- or METADATA onward (no design notes or metadata in chat)
+    for sep in ('\n---', '\nMETADATA:', '\n\nMETADATA:', '\nDesign note', '\nDesign Note', '\n*Note'):
+        idx = text.find(sep)
+        if idx != -1:
+            text = text[:idx].rstrip()
+    # Keep only from first "Passage:" so we drop any leading "Here's your item..." or design blurb
+    for marker in ('Passage:', 'passage:'):
+        passage_start = text.find(marker)
+        if passage_start != -1:
+            text = text[passage_start:]
+            break
+    return text.strip()
 
-Create items with:
-- **Passage:** 3-5 sentences, age-appropriate (grades 2-5)
-- **Question:** Targets one inference type
-- **Target Answer:** Full coherence (Level 2)
-- **Distractor 1:** Partial coherence (Level 1) - uses passage info incorrectly
-- **Distractor 2:** Minimal coherence (Level 0) - outside text, world knowledge only
 
----
-
-## CORE FRAMEWORKS (Choose one from each)
-
-### 1. EVENT-CHAIN RELATION
-- **Logical:** Why/how questions (causes, motivations, enabling conditions)
-- **Informational:** Who/what/when/where questions (referential/spatiotemporal tracking)
-- **Evaluative:** Themes, lessons, significance (global interpretation only)
-
-### 2. KNOWLEDGE-BASE INFERENCE
-- **Superordinate goal:** Purpose, intent, future goals (teleological)
-- **Causal-antecedent:** Prior causes, mechanisms (mechanistic)
-- **State:** Emotions, traits, beliefs explaining behavior (mechanistic)
-- **Referential:** Pronoun resolution, textual connections
-- **Thematic:** Moral/lesson (evaluative)
-
-### 3. QAR LEVEL
-**Text-Explicit:**
-- Answer verbatim/near-verbatim in passage
-- Grammatical link between question and answer
-- Use exact passage wording
-
-**Text-Implicit:**
-- Combine adjacent passage details
-- NO grammatical link
-- Local coherence only
-- Must use passage vocabulary (no synonyms/elevated terms)
-
-**Script-Implicit:**
-- Requires world knowledge + passage
-- NO grammatical link
-- Global coherence
-- May use terms not in passage
-
-### 4. COHERENCE LEVEL
-- **Local:** Adjacent sentences, working memory span
-- **Global:** Distant text parts + world knowledge integration
-
-**Mapping:** Text-Explicit/Implicit → Local | Script-Implicit → Global
-
----
-
-## CRITICAL CONSTRAINTS
-
-### Vocabulary Matching (Text-Explicit/Implicit ONLY)
-✅ **MUST** use exact passage wording
-❌ **NEVER** replace with synonyms or higher-level terms
-
-**Violations:**
-- "thin air" → "high elevation" ❌
-- "butterfly emerge" → "metamorphosis" ❌
-- "land was scarce" → "limited land" ❌
-
-### Target Answer Rules
-**DO NOT ADD:**
-- Teleological additions not in text ("safely", "to be safe")
-- Emotions not stated ("scared", "fearful")
-- Purposes not indicated
-- Higher-level vocabulary (for Text-Explicit/Implicit)
-
-**Coherence Quality (Breadth + Simplicity):**
-- **Breadth:** Target should connect/explain multiple story elements, not just one detail
-- **Simplicity:** Target should require minimal additional assumptions beyond the passage
-- Best answers integrate multiple pieces of evidence while remaining straightforward
-
----
-
-## DISTRACTOR CONSTRUCTION
-
-**Psychometric Ordering Requirement:**
-Distractors must follow attractiveness hierarchy:
-- **D1 (Partial Coherence):** Should attract mid-ability students who engage with text but miss full inference
-- **D2 (Minimal Coherence):** Should attract low-ability students who rely on world knowledge without text integration
-- D1 must be MORE plausible than D2 to create proper difficulty ordering
-
-### Distractor 1 (Partial Coherence)
-**Pattern:** Text-based misconnection
-- References details FROM passage
-- Connects them incorrectly to question
-- Shows partial text engagement
-- Lacks full explanatory integration
-- **Attractiveness:** Plausible enough to tempt students who read the passage but don't make full inference
-
-### Distractor 2 (Minimal Coherence)
-**Pattern:** Over-reliance on world knowledge
-- Based on question/general knowledge only
-- Ignores passage content
-- Plausible generally, not for this story
-- Represents reading question without passage
-- **Attractiveness:** Less plausible than D1; attracts students who don't engage with passage
-
----
-
-## OUTPUT FORMAT
-
-```
-Passage: [3-5 sentences]
-
-Question: [Your question]
-
-Target Answer: [Full coherence]
-
-Distractor 1 (Partial Coherence): [Text-based misconnection]
-
-Distractor 2 (Minimal Coherence): [World knowledge only]
-
----
-METADATA:
-Event-Chain Relation: [Logical/Informational/Evaluative]
-Knowledge-Base Inference: [Superordinate Goal/Causal-Antecedent/State/Referential/Thematic]
-QAR Level: [Text-Explicit/Text-Implicit/Script-Implicit]
-Coherence Level: [Local/Global]
-Explanatory Stance: [Teleological/Mechanistic/N/A]
----
-```
-
----
-
-## KEY PRINCIPLES
-
-1. **Vocabulary matching mandatory** for Text-Explicit/Implicit (no synonyms/elevated terms)
-2. **Never add to story** (no unstated safety/emotions/purposes)
-3. **Clear distractor hierarchy** (D1=partial text, D2=world knowledge only)
-4. **Attractiveness ordering** (Target > D1 > D2 in plausibility for different ability levels)
-5. **Coherence quality** (Target shows breadth across story elements + simplicity in assumptions)
-6. **No redundancy** (distractors must be qualitatively different)
-7. **Plausible distractors** (wrong due to coherence, not impossibility)
-8. **QAR consistency** (question-answer-passage relationship must match chosen level)
-
----
-
-Generate items that provide diagnostic information about students' inferential reasoning and coherence evaluation processes.
-"""
-
-SYSTEM_MESSAGE = """You are an expert educational content designer assistant helping create ROAR reading comprehension items. 
-
-When a user asks you to create or revise an item, you should:
-1. Generate or revise the item following all the guidelines in your instructions
-2. Engage in conversation about the item, accepting feedback and making revisions
-3. Always output items in the structured format when generating/revising
-4. Be conversational and helpful, explaining your design choices when asked
-
-Remember:
-- You can revise items based on user feedback
-- You can explain why you made certain choices
-- Be flexible and creative within the constraints"""
+def capitalize_answer_fields(item):
+    """Ensure target_answer and distractors have proper first-letter capitalization."""
+    for key in ('target_answer', 'distractor_1', 'distractor_2', 'distractor_3', 'distractor_4'):
+        val = item.get(key)
+        if val and isinstance(val, str):
+            val = val.strip()
+            if val and val[0].islower():
+                item[key] = val[0].upper() + val[1:]
+            else:
+                item[key] = val
+    return item
 
 
 def clean_field_content(content):
@@ -197,9 +95,17 @@ def clean_field_content(content):
 
 
 def parse_item_from_response(response_text):
-    """Parse Claude's response into structured item"""
+    """
+    Parse Claude's response into structured item.
+    Handles both old ROAR format and new generic reading comp format.
+    """
     text = response_text.strip()
-    
+    # Normalize line endings
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # If the response is inside a markdown code block, extract the inner content
+    code_block = re.search(r'```(?:\w*)\n?(.*?)```', text, re.DOTALL)
+    if code_block:
+        text = code_block.group(1).strip()
     # Remove all markdown formatting
     text_clean = text.replace('**', '')
     
@@ -207,6 +113,204 @@ def parse_item_from_response(response_text):
     print(text_clean[:800])
     print("=" * 50)
     
+    item = {
+        'passage': '',
+        'questions': [],  # List of questions with options
+        'metadata': {}
+    }
+    
+    # Extract passage (can be multi-line) - case-insensitive start
+    passage_match = text_clean.find('Passage:')
+    if passage_match == -1:
+        passage_match = text_clean.lower().find('passage:')
+    if passage_match != -1:
+        passage_start = passage_match + len('Passage:')
+        # Find the end of passage (before first question or separator)
+        passage_end = text_clean.find('\n---', passage_start)
+        if passage_end == -1:
+            passage_end = text_clean.find('\nQuestion', passage_start)
+        if passage_end != -1:
+            item['passage'] = text_clean[passage_start:passage_end].strip()
+    
+    # Extract questions - look for multiple questions
+    question_num = 1
+    search_start = 0
+    
+    while True:
+        # Try to find Question N:
+        question_marker = f'Question {question_num}:'
+        question_match = text_clean.find(question_marker, search_start)
+        
+        if question_match == -1:
+            # Try without number
+            if question_num == 1:
+                question_marker = 'Question:'
+                question_match = text_clean.find(question_marker, search_start)
+            
+            if question_match == -1:
+                break
+        
+        question_obj = {
+            'question': '',
+            'correct_answer': '',
+            'distractors': [],
+            'type': ''
+        }
+        
+        # Extract question text
+        question_start = question_match + len(question_marker)
+        
+        # Find options start (A), B), etc.) or Target Answer: (new format, case-insensitive)
+        option_a_match = text_clean.find('\nA)', question_start)
+        if option_a_match == -1:
+            option_a_match = text_clean.find('\nA.', question_start)
+        target_re = re.search(r'\n\s*Target\s+Answer\s*:', text_clean[question_start:], re.IGNORECASE)
+        target_match = question_start + target_re.start() if target_re else -1
+        
+        if option_a_match != -1:
+            question_obj['question'] = text_clean[question_start:option_a_match].strip()
+            
+            # Extract options A, B, C, D
+            options = []
+            for letter in ['A', 'B', 'C', 'D', 'E']:
+                for separator in [')', '.']:
+                    option_marker = f'\n{letter}{separator}'
+                    option_match = text_clean.find(option_marker, option_a_match if letter == 'A' else search_start)
+                    
+                    if option_match != -1:
+                        option_start = option_match + len(option_marker)
+                        
+                        # Find next option or end
+                        next_letter = chr(ord(letter) + 1)
+                        option_end = text_clean.find(f'\n{next_letter})', option_start)
+                        if option_end == -1:
+                            option_end = text_clean.find(f'\n{next_letter}.', option_start)
+                        if option_end == -1:
+                            option_end = text_clean.find('\nType:', option_start)
+                        if option_end == -1:
+                            option_end = text_clean.find('\n---', option_start)
+                        if option_end == -1:
+                            option_end = text_clean.find(f'\nQuestion {question_num + 1}:', option_start)
+                        
+                        if option_end != -1:
+                            option_text = text_clean[option_start:option_end].strip()
+                            if option_text:
+                                options.append(option_text)
+                        break
+            
+            # First option is correct, rest are distractors
+            if options:
+                question_obj['correct_answer'] = options[0]
+                question_obj['distractors'] = options[1:]
+            
+            # Extract question type
+            type_match = text_clean.find('Type:', option_a_match)
+            if type_match != -1:
+                type_start = type_match + len('Type:')
+                type_end = text_clean.find('\n', type_start)
+                if type_end != -1:
+                    question_obj['type'] = text_clean[type_start:type_end].strip()
+        elif target_match != -1:
+            # New format: Question / Target Answer / Distractor 1, 2, ... (case-insensitive)
+            question_obj['question'] = text_clean[question_start:target_match].strip()
+            ta_colon = text_clean.find(':', target_match)
+            ta_start = ta_colon + 1 if ta_colon != -1 else target_match + 14
+            d1_re = re.search(r'\n\s*Distractor\s+1\s*:', text_clean[ta_start:], re.IGNORECASE)
+            d1_match = ta_start + d1_re.start() if d1_re else -1
+            if d1_match != -1:
+                question_obj['correct_answer'] = text_clean[ta_start:d1_match].strip()
+            else:
+                end = text_clean.find('\n---', ta_start)
+                if end == -1:
+                    end = text_clean.find('\n\n', ta_start)
+                if end != -1:
+                    question_obj['correct_answer'] = text_clean[ta_start:end].strip()
+                else:
+                    question_obj['correct_answer'] = text_clean[ta_start:].strip()
+            # Distractors (case-insensitive "Distractor N:")
+            for i in range(1, 5):
+                d_re = re.search(r'\n\s*Distractor\s+' + str(i) + r'\s*:', text_clean[question_start:], re.IGNORECASE)
+                if not d_re:
+                    continue
+                d_match = question_start + d_re.start()
+                d_start = text_clean.find(':', d_match) + 1
+                next_re = re.search(r'\n\s*Distractor\s+' + str(i + 1) + r'\s*:', text_clean[d_start:], re.IGNORECASE)
+                next_m = d_start + next_re.start() if next_re else -1
+                if next_m == -1:
+                    next_m = text_clean.find('\n---', d_start)
+                if next_m == -1:
+                    next_m = text_clean.find('\nMETADATA:', d_start)
+                if next_m == -1:
+                    next_m = len(text_clean)
+                content = text_clean[d_start:next_m].strip()
+                if '\n' in content:
+                    content = content.split('\n')[0].strip()
+                if content:
+                    question_obj['distractors'].append(content)
+        
+        if question_obj['question']:
+            item['questions'].append(question_obj)
+        
+        question_num += 1
+        search_start = question_match + len(question_marker) + 100  # Move forward
+        
+        # Safety limit
+        if question_num > 10:
+            break
+    
+    # If no questions found in new format, try old ROAR format
+    if not item['questions']:
+        roar_item = parse_roar_format(text_clean)
+        if roar_item:
+            return roar_item
+    
+    # Normalize to flat shape for frontend (question, target_answer, distractor_1, ...)
+    if item['questions']:
+        q0 = item['questions'][0]
+        item['question'] = q0.get('question', '')
+        item['target_answer'] = q0.get('correct_answer', '')
+        distractors = q0.get('distractors') or []
+        for i, d in enumerate(distractors):
+            if i < 4:
+                item[f'distractor_{i + 1}'] = d
+        for i in range(len(distractors), 4):
+            item[f'distractor_{i + 1}'] = ''
+        # If we still have no target/distractors, try ROAR parser and merge flat fields
+        if not item['target_answer'] and not any(item.get(f'distractor_{i}') for i in range(1, 5)):
+            roar_item = parse_roar_format(text_clean)
+            if roar_item:
+                item['question'] = roar_item.get('question') or item['question']
+                item['target_answer'] = roar_item.get('target_answer', '')
+                for i in range(1, 5):
+                    key = f'distractor_{i}'
+                    if roar_item.get(key):
+                        item[key] = roar_item[key]
+    
+    # Extract metadata
+    metadata_start = text_clean.find('METADATA:')
+    if metadata_start != -1:
+        metadata_section = text_clean[metadata_start:]
+        
+        for line in metadata_section.split('\n'):
+            line = line.strip()
+            if ':' not in line or line.startswith('---'):
+                continue
+            
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                key = parts[0].strip().lower().replace(' ', '_')
+                value = parts[1].strip()
+                item['metadata'][key] = value
+    
+    print(f"Parsed passage length: {len(item['passage'])}")
+    print(f"Parsed {len(item['questions'])} questions")
+    
+    capitalize_answer_fields(item)
+    return item
+
+
+def parse_roar_format(text_clean):
+    """Parse old ROAR format for backward compatibility"""
     item = {
         'passage': '',
         'question': '',
@@ -220,7 +324,7 @@ def parse_item_from_response(response_text):
         'explanatory_stance': ''
     }
     
-    # Extract passage (can be multi-line)
+    # Extract passage
     passage_match = text_clean.find('Passage:')
     if passage_match != -1:
         passage_start = passage_match + len('Passage:')
@@ -230,74 +334,79 @@ def parse_item_from_response(response_text):
         if passage_end != -1:
             item['passage'] = text_clean[passage_start:passage_end].strip()
     
-    # Extract question
+    # Extract question (case-insensitive for Target Answer)
     question_match = text_clean.find('Question:')
+    if question_match == -1:
+        question_match = text_clean.lower().find('question:')
     if question_match != -1:
-        question_start = question_match + len('Question:')
-        question_end = text_clean.find('\n\nTarget Answer:', question_start)
-        if question_end == -1:
-            question_end = text_clean.find('\nTarget Answer:', question_start)
+        qm_len = len('Question:')
+        if text_clean[question_match:question_match+qm_len].lower() != 'question:':
+            qm_len = len('question:')
+        question_start = question_match + qm_len
+        ta_re = re.search(r'\n\s*Target\s+Answer\s*:', text_clean[question_start:], re.IGNORECASE)
+        question_end = question_start + ta_re.start() if ta_re else -1
         if question_end != -1:
             item['question'] = text_clean[question_start:question_end].strip()
     
-    # Extract target answer
-    target_match = text_clean.find('Target Answer:')
-    if target_match != -1:
-        target_start = target_match + len('Target Answer:')
-        target_end = text_clean.find('\nDistractor 1', target_start)
-        if target_end == -1:
-            target_end = text_clean.find('\n\nDistractor 1', target_start)
+    # Extract target answer (case-insensitive)
+    ta_re = re.search(r'Target\s+Answer\s*:', text_clean, re.IGNORECASE)
+    if ta_re:
+        target_match = ta_re.start()
+        target_start = ta_re.end()
+        d1_re = re.search(r'\n\s*Distractor\s+1\s*:', text_clean[target_start:], re.IGNORECASE)
+        target_end = target_start + d1_re.start() if d1_re else -1
         if target_end != -1:
             item['target_answer'] = text_clean[target_start:target_end].strip()
+        else:
+            end = text_clean.find('\n---', target_start)
+            if end == -1:
+                end = len(text_clean)
+            item['target_answer'] = text_clean[target_start:end].strip()
     
-    # Extract Distractor 1
-    d1_match = text_clean.find('Distractor 1')
-    if d1_match != -1:
+    # Extract Distractor 1 (case-insensitive)
+    d1_re = re.search(r'Distractor\s+1\s*:', text_clean, re.IGNORECASE)
+    if d1_re:
+        d1_match = d1_re.start()
         d1_start = text_clean.find(':', d1_match) + 1
-        d1_end = text_clean.find('\nDistractor 2', d1_match)
-        if d1_end == -1:
-            d1_end = text_clean.find('\n\nDistractor 2', d1_match)
+        d2_re = re.search(r'\n\s*Distractor\s+2\s*:', text_clean[d1_start:], re.IGNORECASE)
+        d1_end = d1_start + d2_re.start() if d2_re else -1
         if d1_end != -1:
             content = text_clean[d1_start:d1_end].strip()
-            # Remove anything in parentheses like "(Partial Coherence)"
             paren_pos = content.find('(')
             if paren_pos > 0:
                 content = content[:paren_pos].strip()
+            if '\n' in content:
+                content = content.split('\n')[0].strip()
             item['distractor_1'] = content
     
-    # Extract Distractor 2
-    d2_match = text_clean.find('Distractor 2')
+    # Extract Distractor 2 (case-insensitive)
+    d2_re = re.search(r'Distractor\s+2\s*:', text_clean, re.IGNORECASE)
+    d2_match = d2_re.start() if d2_re else -1
     if d2_match != -1:
         d2_start = text_clean.find(':', d2_match) + 1
-        # Look for end markers - stop before metadata/separator
         d2_end = text_clean.find('\nMETADATA:', d2_match)
         if d2_end == -1:
             d2_end = text_clean.find('\n\n---', d2_match)
         if d2_end == -1:
             d2_end = text_clean.find('\n---', d2_match)
         if d2_end == -1:
-            # Try to find next double newline
             d2_end = text_clean.find('\n\n', d2_start)
         
         if d2_end != -1:
             content = text_clean[d2_start:d2_end].strip()
-            # Remove anything in parentheses
             paren_pos = content.find('(')
             if paren_pos > 0:
                 content = content[:paren_pos].strip()
-            # Take only first line if multiple lines exist
             if '\n' in content:
                 content = content.split('\n')[0].strip()
-            # Remove any remaining dashes
             content = content.replace('---', '').strip()
             item['distractor_2'] = content
     
-    # Parse metadata section
+    # Parse metadata
     metadata_start = text_clean.find('METADATA:')
     if metadata_start != -1:
         metadata_section = text_clean[metadata_start:]
         
-        # Extract each metadata field
         for line in metadata_section.split('\n'):
             line = line.strip()
             if ':' not in line:
@@ -313,19 +422,141 @@ def parse_item_from_response(response_text):
             elif line.startswith('Explanatory Stance:'):
                 item['explanatory_stance'] = line.split(':', 1)[1].strip()
     
-    print(f"Parsed passage length: {len(item['passage'])}")
-    print(f"Parsed question length: {len(item['question'])}")
-    print(f"Parsed target_answer length: {len(item['target_answer'])}")
-    print(f"Parsed distractor_1 length: {len(item['distractor_1'])}")
-    print(f"Parsed distractor_2 length: {len(item['distractor_2'])}")
-    print(f"Distractor 2 content: '{item['distractor_2']}'")
+    # Only return if we found at least passage and question
+    if item['passage'] and item['question']:
+        capitalize_answer_fields(item)
+        return item
     
-    return item
+    return None
 
 
 @app.route('/')
 def index():
+    # Initialize session config if not present
+    if 'config' not in session:
+        session['config'] = DEFAULT_CONFIG.copy()
     return render_template('index.html')
+
+
+@app.route('/get_config', methods=['GET'])
+def get_config():
+    """Get current configuration"""
+    if 'config' not in session:
+        session['config'] = DEFAULT_CONFIG.copy()
+    out = dict(session['config'])
+    # Frontend checks custom_manual for "manual loaded"; we store full text in file, id in session
+    if out.get('custom_manual_id') and not out.get('custom_manual'):
+        out['custom_manual'] = True  # signal that a manual is loaded (content read from file when needed)
+    out['difficulty_model_loaded'] = difficulty_estimator.is_loaded()
+    return jsonify(out)
+
+
+@app.route('/model_status', methods=['GET'])
+def model_status():
+    """Check if the difficulty estimation model (BERT + Ridge) is loaded. No terminal needed."""
+    return jsonify({'loaded': difficulty_estimator.is_loaded()})
+
+
+@app.route('/update_config', methods=['POST'])
+def update_config():
+    """Update configuration settings"""
+    try:
+        data = request.json
+        updates = data.get('config', {})
+        
+        # Ensure passage_word_count is an integer
+        if 'passage_word_count' in updates:
+            try:
+                updates['passage_word_count'] = int(updates['passage_word_count'])
+            except (TypeError, ValueError):
+                updates['passage_word_count'] = 20
+        
+        # Get current config or use default
+        current_config = session.get('config', DEFAULT_CONFIG.copy())
+        
+        # Merge with updates
+        new_config = merge_config(current_config, updates)
+        
+        # Validate
+        errors = validate_config(new_config)
+        if errors:
+            return jsonify({'error': ', '.join(errors)}), 400
+        
+        # Save to session
+        session['config'] = new_config
+        session.modified = True
+        
+        return jsonify({
+            'status': 'success',
+            'config': new_config
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/upload_manual', methods=['POST'])
+def upload_manual():
+    """Handle manual file upload"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+        
+        # Process the file
+        success, result = process_manual_upload(file, app.config['UPLOAD_FOLDER'])
+        
+        if not success:
+            return jsonify({'error': result}), 400
+        
+        # Store manual in file so session cookie is not truncated (Flask session ~4KB limit)
+        os.makedirs(app.config['MANUALS_DIR'], exist_ok=True)
+        manual_id = str(uuid.uuid4())
+        manual_path = os.path.join(app.config['MANUALS_DIR'], manual_id + '.txt')
+        with open(manual_path, 'w', encoding='utf-8') as f:
+            f.write(result)
+        
+        if 'config' not in session:
+            session['config'] = DEFAULT_CONFIG.copy()
+        session['config']['custom_manual_id'] = manual_id
+        session['config']['custom_manual'] = None  # no longer store full text in session
+        session.modified = True
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Manual uploaded successfully',
+            'preview': result[:200] + '...' if len(result) > 200 else result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/clear_manual', methods=['POST'])
+def clear_manual():
+    """Clear uploaded manual"""
+    try:
+        if 'config' in session:
+            manual_id = session['config'].get('custom_manual_id')
+            if manual_id:
+                path = os.path.join(app.config['MANUALS_DIR'], manual_id + '.txt')
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+            session['config']['custom_manual_id'] = None
+            session['config']['custom_manual'] = None
+            session.modified = True
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/chat', methods=['POST'])
@@ -338,25 +569,92 @@ def chat():
         user_message = data.get('message', '')
         print(f"User message: {user_message}")
         
+        # Initialize config if not present
+        if 'config' not in session:
+            session['config'] = DEFAULT_CONFIG.copy()
+        
         if 'conversation_history' not in session:
             session['conversation_history'] = []
         
+        # If client sent config (e.g. from form), merge over session so generation always uses it
+        request_config = data.get('config')
+        if request_config and isinstance(request_config, dict):
+            if 'passage_word_count' in request_config:
+                try:
+                    request_config['passage_word_count'] = int(request_config['passage_word_count'])
+                except (TypeError, ValueError):
+                    request_config['passage_word_count'] = 20
+                request_config['passage_word_count'] = max(10, min(1000, request_config['passage_word_count']))
+            if 'distractors_per_question' in request_config:
+                try:
+                    request_config['distractors_per_question'] = int(request_config['distractors_per_question'])
+                except (TypeError, ValueError):
+                    request_config['distractors_per_question'] = 2
+            current = session.get('config', DEFAULT_CONFIG.copy())
+            session['config'] = merge_config(current, request_config)
+            session.modified = True
+        
+        config = session['config']
         conversation_history = session['conversation_history']
+        
+        # Load full manual from file (avoids session cookie truncation); fallback to session for old data
+        manual_text = get_manual_text(config)
+        
+        # Use request body config for injected instruction so we always use what the user just sent (not stale session)
+        effective_config = request_config if (request_config and isinstance(request_config, dict)) else config
+        if request_config:
+            print(f"Request body config: passage_word_count={request_config.get('passage_word_count')}, distractors={request_config.get('distractors_per_question')}")
+        word_count = effective_config.get('passage_word_count', 20)
+        try:
+            word_count = int(word_count)
+        except (TypeError, ValueError):
+            word_count = 20
+        word_count = max(10, min(1000, word_count))
+        num_d = effective_config.get('distractors_per_question', 2)
+        try:
+            num_d = int(num_d)
+        except (TypeError, ValueError):
+            num_d = 2
+        num_d = max(2, min(4, num_d))
+        
+        print(f"Using config: passage_word_count={word_count}, distractors={num_d}, (from request: {request_config is not None})")
         
         conversation_history.append({
             'role': 'user',
             'content': user_message
         })
         
-        messages = [{'role': msg['role'], 'content': msg['content']} 
-                   for msg in conversation_history]
+        # Build user message for API: include full manual in chat (like when user pastes it) so model follows it
+        manual_reminder = " (3) You MUST follow the guidelines below for this item." if manual_text else ""
+        user_message_for_api = (
+            f"[Your response: (1) The passage must be exactly {word_count} words—count them. "
+            f"(2) Include exactly {num_d} wrong-answer options (Distractor 1 through Distractor {num_d}).{manual_reminder}] "
+        )
+        if manual_text:
+            user_message_for_api += "\n\n**Guidelines to follow (apply to this item):**\n" + manual_text.strip() + "\n\n**User request:** " + user_message
+        else:
+            user_message_for_api += user_message
+        
+        messages = [{'role': msg['role'], 'content': msg['content']} for msg in conversation_history]
+        messages[-1] = {'role': 'user', 'content': user_message_for_api}
+        
+        # Build system prompt from config, but force passage_word_count and distractors from this request so they match the injected message
+        config_for_prompt = {**config, 'passage_word_count': word_count, 'distractors_per_question': num_d}
+        system_prompt = build_system_prompt(
+            config_for_prompt,
+            user_message,
+            manual_text
+        )
+        
+        chat_system_message = build_chat_system_message(has_custom_manual=bool(manual_text))
+        full_system_message = chat_system_message + "\n\n" + system_prompt
         
         # Use streaming for faster responses
         with client.messages.stream(
-            model='claude-haiku-4-5-20251001',
+            model='claude-opus-4-6',
             max_tokens=4000,
             temperature=1,
-            system=SYSTEM_MESSAGE + "\n\n" + ROAR_PROMPT,
+            system=full_system_message,
             messages=messages
         ) as stream:
             assistant_message = ""
@@ -388,7 +686,9 @@ def chat():
                 print(f"Item saved to session")
                 
                 if difficulty_estimator.is_loaded():
-                    difficulty = difficulty_estimator.estimate_difficulty(parsed_item)
+                    grade_level = config.get('grade_level', 4)
+                    item_for_difficulty = {**parsed_item, 'grade': f'Grade{grade_level}'}
+                    difficulty = difficulty_estimator.estimate_difficulty(item_for_difficulty)
                     print(f"Difficulty estimated: {difficulty}")
             else:
                 print(f"No valid item found - passage: {parsed_item.get('passage') if parsed_item else None}, question: {parsed_item.get('question') if parsed_item else None}")
@@ -400,7 +700,7 @@ def chat():
             parsed_item = None
         
         response_data = {
-            'message': assistant_message,
+            'message': message_for_display(assistant_message),
             'item': parsed_item,
             'difficulty': difficulty
         }
@@ -422,9 +722,11 @@ def clear_session():
 def get_current_item():
     current_item = session.get('current_item')
     difficulty = None
-    
+
     if current_item and difficulty_estimator.is_loaded():
-        difficulty = difficulty_estimator.estimate_difficulty(current_item)
+        grade_level = session.get('config', {}).get('grade_level', 4)
+        item_with_grade = {**current_item, 'grade': f'Grade{grade_level}'}
+        difficulty = difficulty_estimator.estimate_difficulty(item_with_grade)
     
     return jsonify({
         'item': current_item,
@@ -483,7 +785,9 @@ def update_item():
         # Re-calculate difficulty if model is loaded
         difficulty = None
         if difficulty_estimator.is_loaded():
-            difficulty = difficulty_estimator.estimate_difficulty(updated_item)
+            grade_level = session.get('config', {}).get('grade_level', 4)
+            item_with_grade = {**updated_item, 'grade': f'Grade{grade_level}'}
+            difficulty = difficulty_estimator.estimate_difficulty(item_with_grade)
         
         return jsonify({
             'status': 'success',
@@ -584,7 +888,7 @@ def export_collection():
             
             # Create response with CSV file
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'roar_items_collection_{timestamp}.csv'
+            filename = f'items_{timestamp}.csv'
             
             from flask import make_response
             response = make_response(csv_content)
