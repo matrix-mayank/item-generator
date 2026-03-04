@@ -1346,9 +1346,9 @@
                 }
                 
                 difficultyHTML = `
-                    <div class="item-field">
+                    <div class="item-field" id="difficulty-preview-block">
                         <div class="item-field-label">Difficulty</div>
-                        <div class="item-field-content">
+                        <div class="item-field-content" id="difficulty-preview-content">
                             <span class="difficulty-badge ${difficultyClass}">
                                 ${difficultyLabel}
                             </span>
@@ -1680,18 +1680,10 @@
                 `;
             }
             
-            // Find and update the difficulty field content (label is "Difficulty" in updateItemPreview)
-            const difficultyFields = itemPreview.querySelectorAll('.item-field');
-            for (const field of difficultyFields) {
-                const label = field.querySelector('.item-field-label');
-                const labelText = label ? label.textContent.trim() : '';
-                if (labelText === 'Difficulty' || labelText === 'Estimated Difficulty') {
-                    const content = field.querySelector('.item-field-content');
-                    if (content) {
-                        content.innerHTML = difficultyHTML;
-                    }
-                    break;
-                }
+            // Update difficulty block by id so it works reliably after edits (deployed + cached)
+            const content = document.getElementById('difficulty-preview-content');
+            if (content) {
+                content.innerHTML = difficultyHTML;
             }
         }
 

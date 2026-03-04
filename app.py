@@ -774,6 +774,7 @@ def export_item():
 @app.route('/update_item', methods=['POST'])
 def update_item():
     try:
+        print("update_item called (edit in preview)")
         data = request.json
         updated_item = data.get('item')
         
@@ -788,6 +789,7 @@ def update_item():
             grade_level = session.get('config', {}).get('grade_level', 4)
             item_with_grade = {**updated_item, 'grade': f'Grade{grade_level}'}
             difficulty = difficulty_estimator.estimate_difficulty(item_with_grade)
+            print("Difficulty recalculated on edit:", difficulty)
         
         return jsonify({
             'status': 'success',
