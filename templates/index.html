@@ -1680,11 +1680,12 @@
                 `;
             }
             
-            // Find and update the difficulty field content
+            // Find and update the difficulty field content (label is "Difficulty" in updateItemPreview)
             const difficultyFields = itemPreview.querySelectorAll('.item-field');
             for (const field of difficultyFields) {
                 const label = field.querySelector('.item-field-label');
-                if (label && label.textContent === 'Estimated Difficulty') {
+                const labelText = label ? label.textContent.trim() : '';
+                if (labelText === 'Difficulty' || labelText === 'Estimated Difficulty') {
                     const content = field.querySelector('.item-field-content');
                     if (content) {
                         content.innerHTML = difficultyHTML;
